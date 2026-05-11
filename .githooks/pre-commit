@@ -1,0 +1,6 @@
+#!/bin/sh
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/secret-scan.ps1
+if [ $? -ne 0 ]; then
+  exit 1
+fi
+exit 0
