@@ -4,12 +4,122 @@
   <meta charset="UTF-8">
   <title>DreamRec</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 12px; width: 280px; }
-    h1 { font-size: 16px; margin: 0 0 10px; }
+    :root {
+      --bg-primary: #141414;
+      --bg-secondary: #1F1F1F;
+      --glass-bg: rgba(255, 255, 255, 0.05);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --text-primary: #FAFAFA;
+      --text-secondary: #D1D5DB;
+      --text-muted: #9CA3AF;
+      --accent: #FAFAFA;
+      --accent-hover: #E5E5E5;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 16px;
+      width: 280px;
+      background-color: var(--bg-primary);
+      background-image: radial-gradient(circle at top right, rgba(255,255,255,0.06), transparent 50%),
+                        radial-gradient(circle at bottom left, rgba(255,255,255,0.04), transparent 50%);
+      color: var(--text-primary);
+    }
+    h1 { font-size: 18px; margin: 0 0 14px; font-weight: 600; }
     label, select, button, p { width: 100%; box-sizing: border-box; }
-    select { padding: 6px; margin-bottom: 10px; }
-    button { padding: 8px; margin-bottom: 8px; }
-    #status { min-height: 40px; border: 1px solid #ccc; padding: 8px; border-radius: 4px; background: #f9f9f9; }
+    label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 4px; font-weight: 500; }
+    
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      color: var(--text-secondary);
+    }
+    input[type="checkbox"] {
+      accent-color: var(--text-primary);
+      width: auto;
+      cursor: pointer;
+      margin: 0;
+    }
+
+    select, button, #status {
+      border-radius: 6px;
+      font-family: inherit;
+    }
+    select {
+      padding: 8px 10px;
+      margin-bottom: 12px;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border: 1px solid var(--glass-border);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s ease;
+      cursor: pointer;
+    }
+    @supports (backdrop-filter: blur(10px)) {
+      select, #status {
+        background: var(--glass-bg);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+    }
+    select:focus { border-color: rgba(255,255,255,0.3); }
+    
+    option {
+      background-color: var(--bg-secondary);
+      color: var(--text-primary);
+    }
+    
+    button {
+      padding: 10px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+    }
+    #startBtn {
+      background: var(--accent);
+      color: var(--bg-primary);
+    }
+    #startBtn:hover { background: var(--accent-hover); }
+    
+    #stopBtn {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    #stopBtn:hover:not(:disabled) {
+      background: rgba(255,255,255,0.05);
+      color: var(--text-primary);
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      border-color: rgba(255,255,255,0.1);
+      color: var(--text-muted);
+    }
+    
+    #status {
+      min-height: 40px;
+      border: 1px solid var(--glass-border);
+      padding: 10px;
+      font-size: 13px;
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+      margin-top: 10px;
+      margin-bottom: 12px;
+      word-wrap: break-word;
+      font-weight: 500;
+    }
+    
+    p { margin: 0 0 10px; font-size: 13px; color: var(--text-secondary); }
+    .hint { font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-bottom: 12px; display: block; font-weight: normal; }
   </style>
 </head>
 <body>
@@ -29,7 +139,7 @@
     <option value="mp4" selected>MP4 (if browser supports)</option>
   </select>
 
-  <label for="sizeMode">Size/Quality mode</label>
+  <label for="sizeMode">Compression mode</label>
   <select id="sizeMode">
     <option value="compat">Compatibility (larger file)</option>
     <option value="balanced">Balanced</option>
@@ -44,7 +154,7 @@
     <option value="60">60 FPS</option>
   </select>
 
-  <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 10px;">
+  <label class="checkbox-label">
     <input type="checkbox" id="saveAsCheckbox" checked>
     Ask where to save (Save As)
   </label>
@@ -52,10 +162,9 @@
   <button id="startBtn">Start recording</button>
   <button id="stopBtn" disabled>Stop recording</button>
 
-  <p>Time: <span id="timer">00:00</span></p>
-  <p style="font-size: 12px; color: #555; margin-top: -4px;">Start pe click karo, picker se source select karo, phir recording start ho jayegi.</p>
+  <p style="margin-top: 4px;">Time: <span id="timer" style="color: var(--text-primary); font-weight: 600;">00:00</span></p>
   <p id="status">Idle</p>
-  <p id="meetingHint" style="font-size: 12px; color: #555; display: block;">Optimized WebM output (MP4 container not natively supported in browser recorder).</p>
+  <span class="hint">If MP4 is unavailable, recording will automatically fall back to WebM.</span>
 
   <script src="popup.js"></script>
 </body>
