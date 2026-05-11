@@ -19,6 +19,14 @@ DreamRec is a Chrome extension for recording browser meetings and screens with c
 3. Click **Load unpacked** and select this folder
 4. Open extension popup and start recording
 
+### macOS Permission Setup
+
+Before recording on Mac:
+
+1. Open **System Settings** -> **Privacy & Security** -> **Screen Recording**
+2. Enable permission for **Google Chrome**
+3. Restart Chrome
+
 ## MP4 Conversion (Optional)
 
 Browser recording may still produce WebM depending on runtime codec support.
@@ -26,6 +34,13 @@ Use the included converter scripts:
 
 ```bat
 convert-to-mp4.bat "C:\path\meeting-recording.webm" balanced
+```
+
+macOS:
+
+```bash
+chmod +x ./convert-to-mp4.command
+./convert-to-mp4.command "/path/to/meeting-recording.webm" balanced
 ```
 
 Available presets: `small`, `balanced`, `high`, `4k`.
