@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "DreamRec",
+  "description": "DreamRec: local screen recorder for browser meetings",
+  "version": "1.1.0",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "DreamRec"
+  },
+  "permissions": [
+    "downloads",
+    "storage",
+    "tabs"
+  ]
+}

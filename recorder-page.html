@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DreamRec - Recorder</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px auto; max-width: 640px; padding: 0 16px; }
+    h1 { margin-bottom: 8px; }
+    .row { display: flex; gap: 8px; margin: 12px 0; }
+    button { padding: 10px 14px; }
+    #status { min-height: 40px; border: 1px solid #ccc; padding: 10px; border-radius: 6px; background: #f9f9f9; }
+    .muted { color: #666; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>DreamRec</h1>
+  <p class="muted">This page is used so the share dialog opens in the center. Keep this tab open while recording.</p>
+  <div class="row">
+    <button id="startBtn">Start Recording</button>
+    <button id="stopBtn" disabled>Stop Recording</button>
+  </div>
+  <p>Time: <span id="timer">00:00</span></p>
+  <p id="status">Idle</p>
+  <script src="recorder-page.js"></script>
+</body>
+</html>
