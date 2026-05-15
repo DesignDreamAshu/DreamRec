@@ -1,51 +1,20 @@
-# DreamRec
+# DreamRec (WebM Only)
 
-DreamRec is a Chrome extension for recording browser meetings and screens with controllable quality, FPS, output format, and compression mode.
+DreamRec is a Chrome extension for reliable tab/screen recording with WebM output.
 
-## Features
+## Current Scope
+- Record screen/tab with audio (system/tab + mic merge when available)
+- Resolution options: 720p, 1080p, 1440p, 2160p, Max
+- FPS options: 30, 60
+- Quality options: High, Medium, Low
+- Output: WebM only
 
-- One-click recording flow with screen share picker
-- Quality presets up to 4K
-- FPS selection: 25, 30, 60
-- Output format preference: WebM / MP4 (browser-support dependent, with fallback)
-- Size/quality modes: Compatibility, Balanced, Small, Ultra Small
-- Save As support for custom output path
-- Post-conversion scripts for MP4 optimization
-
-## Local Setup
-
-1. Open `chrome://extensions`
-2. Enable **Developer mode**
-3. Click **Load unpacked** and select this folder
-4. Open extension popup and start recording
-
-### macOS Permission Setup
-
-Before recording on Mac:
-
-1. Open **System Settings** -> **Privacy & Security** -> **Screen Recording**
-2. Enable permission for **Google Chrome**
-3. Restart Chrome
-
-## MP4 Conversion (Optional)
-
-Browser recording may still produce WebM depending on runtime codec support.
-Use the included converter scripts:
-
-```bat
-convert-to-mp4.bat "C:\path\meeting-recording.webm" balanced
-```
-
-macOS:
-
-```bash
-chmod +x ./convert-to-mp4.command
-./convert-to-mp4.command "/path/to/meeting-recording.webm" balanced
-```
-
-Available presets: `small`, `balanced`, `high`, `4k`.
+## Files
+- popup UI: `popup.html`, `popup.js`, `popup.css`
+- recorder page: `recorder-page.html`, `recorder-page.js`
+- background download bridge: `background.js`
+- extension config: `manifest.json`
 
 ## Notes
-
-- If MP4 codec is unsupported at runtime, DreamRec falls back to WebM.
-- For guaranteed MP4 everywhere, keep using the FFmpeg conversion script.
+- MP4 conversion pipeline has been removed for now.
+- Recorder tab is currently kept open after stop in debug mode.

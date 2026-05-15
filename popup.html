@@ -1,170 +1,69 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DreamRec</title>
-  <style>
-    :root {
-      --bg-primary: #141414;
-      --bg-secondary: #1F1F1F;
-      --glass-bg: rgba(255, 255, 255, 0.05);
-      --glass-border: rgba(255, 255, 255, 0.08);
-      --text-primary: #FAFAFA;
-      --text-secondary: #D1D5DB;
-      --text-muted: #9CA3AF;
-      --accent: #FAFAFA;
-      --accent-hover: #E5E5E5;
-    }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      margin: 0;
-      padding: 16px;
-      width: 280px;
-      background-color: var(--bg-primary);
-      background-image: radial-gradient(circle at top right, rgba(255,255,255,0.06), transparent 50%),
-                        radial-gradient(circle at bottom left, rgba(255,255,255,0.04), transparent 50%);
-      color: var(--text-primary);
-    }
-    h1 { font-size: 18px; margin: 0 0 14px; font-weight: 600; }
-    label, select, button, p { width: 100%; box-sizing: border-box; }
-    label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 4px; font-weight: 500; }
-    
-    .checkbox-label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      margin-bottom: 12px;
-      cursor: pointer;
-      color: var(--text-secondary);
-    }
-    input[type="checkbox"] {
-      accent-color: var(--text-primary);
-      width: auto;
-      cursor: pointer;
-      margin: 0;
-    }
-
-    select, button, #status {
-      border-radius: 6px;
-      font-family: inherit;
-    }
-    select {
-      padding: 8px 10px;
-      margin-bottom: 12px;
-      background: var(--bg-secondary);
-      color: var(--text-primary);
-      border: 1px solid var(--glass-border);
-      font-size: 13px;
-      outline: none;
-      transition: border-color 0.2s ease;
-      cursor: pointer;
-    }
-    @supports (backdrop-filter: blur(10px)) {
-      select, #status {
-        background: var(--glass-bg);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-      }
-    }
-    select:focus { border-color: rgba(255,255,255,0.3); }
-    
-    option {
-      background-color: var(--bg-secondary);
-      color: var(--text-primary);
-    }
-    
-    button {
-      padding: 10px;
-      margin-bottom: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      border: 1px solid transparent;
-      transition: all 0.2s ease;
-    }
-    #startBtn {
-      background: var(--accent);
-      color: var(--bg-primary);
-    }
-    #startBtn:hover { background: var(--accent-hover); }
-    
-    #stopBtn {
-      background: transparent;
-      color: var(--text-secondary);
-      border: 1px solid rgba(255,255,255,0.2);
-    }
-    #stopBtn:hover:not(:disabled) {
-      background: rgba(255,255,255,0.05);
-      color: var(--text-primary);
-    }
-    button:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      border-color: rgba(255,255,255,0.1);
-      color: var(--text-muted);
-    }
-    
-    #status {
-      min-height: 40px;
-      border: 1px solid var(--glass-border);
-      padding: 10px;
-      font-size: 13px;
-      color: var(--text-primary);
-      background: var(--bg-secondary);
-      margin-top: 10px;
-      margin-bottom: 12px;
-      word-wrap: break-word;
-      font-weight: 500;
-    }
-    
-    p { margin: 0 0 10px; font-size: 13px; color: var(--text-secondary); }
-    .hint { font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-bottom: 12px; display: block; font-weight: normal; }
-  </style>
+  <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <h1>DreamRec</h1>
+  <main class="app">
+    <h1>DreamRec</h1>
+    <section id="authGate">
+      <p id="authText" class="status">Sign in required to use recorder.</p>
+      <div class="actions">
+        <button id="loginBtn" type="button">Sign in with Google</button>
+      </div>
+    </section>
 
-  <label for="quality">Quality</label>
-  <select id="quality">
-    <option value="720p">720p (small)</option>
-    <option value="1080p" selected>1080p (balanced)</option>
-    <option value="1440p">1440p (high)</option>
-    <option value="2160p">4K (largest)</option>
-  </select>
+    <section id="appContent" hidden>
+      <div class="history-row" style="margin-bottom:12px;">
+        <div>
+          <div id="userEmail" class="history-name"></div>
+          <div class="history-time">Signed in</div>
+        </div>
+        <div class="history-actions">
+          <button id="logoutBtn" type="button" class="history-btn">Logout</button>
+        </div>
+      </div>
 
-  <label for="format">Output format</label>
-  <select id="format">
-    <option value="webm">WebM (recommended)</option>
-    <option value="mp4" selected>MP4 (if browser supports)</option>
-  </select>
+    <label for="resolution">Resolution</label>
+    <select id="resolution">
+      <option value="720p">720p</option>
+      <option value="1080p" selected>1080p</option>
+      <option value="1440p">2K (1440p)</option>
+      <option value="2160p">4K (2160p)</option>
+      <option value="max">Max</option>
+    </select>
 
-  <label for="sizeMode">Compression mode</label>
-  <select id="sizeMode">
-    <option value="compat">Compatibility (larger file)</option>
-    <option value="balanced">Balanced</option>
-    <option value="small" selected>Small size</option>
-    <option value="ultra">Ultra small (more compression)</option>
-  </select>
+    <label for="fps">FPS</label>
+    <select id="fps">
+      <option value="30" selected>30</option>
+      <option value="60">60</option>
+    </select>
 
-  <label for="fps">FPS</label>
-  <select id="fps">
-    <option value="25">25 FPS</option>
-    <option value="30" selected>30 FPS</option>
-    <option value="60">60 FPS</option>
-  </select>
+    <label for="quality">Quality</label>
+    <select id="quality">
+      <option value="high">High</option>
+      <option value="medium" selected>Medium</option>
+      <option value="low">Low</option>
+    </select>
 
-  <label class="checkbox-label">
-    <input type="checkbox" id="saveAsCheckbox" checked>
-    Ask where to save (Save As)
-  </label>
+    <label for="outputMode">Output Format</label>
+    <select id="outputMode" disabled>
+      <option value="webm" selected>WebM only</option>
+    </select>
 
-  <button id="startBtn">Start recording</button>
-  <button id="stopBtn" disabled>Stop recording</button>
+    <div class="actions">
+      <button id="startBtn" type="button">Start Record</button>
+      <button id="stopBtn" type="button" disabled>Stop Record</button>
+      <button id="downloadBtn" type="button">Refresh History</button>
+    </div>
 
-  <p style="margin-top: 4px;">Time: <span id="timer" style="color: var(--text-primary); font-weight: 600;">00:00</span></p>
-  <p id="status">Idle</p>
-  <span class="hint">If MP4 is unavailable, recording will automatically fall back to WebM.</span>
+    <div id="history" class="history"></div>
+    <p id="status" class="status">Idle</p>
+    </section>
+  </main>
 
   <script src="popup.js"></script>
 </body>

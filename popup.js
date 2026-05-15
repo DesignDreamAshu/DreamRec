@@ -1,75 +1,185 @@
-const startBtn = document.getElementById('startBtn');
-const stopBtn = document.getElementById('stopBtn');
-const statusEl = document.getElementById('status');
-const qualitySelect = document.getElementById('quality');
-const formatSelect = document.getElementById('format');
-const sizeModeSelect = document.getElementById('sizeMode');
-const fpsSelect = document.getElementById('fps');
-const timerEl = document.getElementById('timer');
-const saveAsCheckbox = document.getElementById('saveAsCheckbox');
+﻿/* LOCKED BASELINE (do not change without explicit user request)
+ * Stable recording flow:
+ * popup.js -> recorder-page.html -> recorder-page.js
+ */
+const SETTINGS_KEY = 'dreamrec-settings-v1';
 
-let timerId = null;
-let startedAtMs = null;
-let recorderTabId = null;
+const els = {
+  authGate: document.getElementById('authGate'),
+  appContent: document.getElementById('appContent'),
+  authText: document.getElementById('authText'),
+  loginBtn: document.getElementById('loginBtn'),
+  logoutBtn: document.getElementById('logoutBtn'),
+  userEmail: document.getElementById('userEmail'),
+  resolution: document.getElementById('resolution'),
+  fps: document.getElementById('fps'),
+  quality: document.getElementById('quality'),
+  outputMode: document.getElementById('outputMode'),
+  startBtn: document.getElementById('startBtn'),
+  stopBtn: document.getElementById('stopBtn'),
+  downloadBtn: document.getElementById('downloadBtn'),
+  history: document.getElementById('history'),
+  status: document.getElementById('status')
+};
+
+const defaults = {
+  resolution: '1080p',
+  fps: 30,
+  quality: 'medium',
+  outputMode: 'webm'
+};
 let isRecording = false;
+let recorderTabId = null;
+let popupAuthBusy = false;
 
-init();
-
-startBtn.addEventListener('click', startRecordingFlow);
-stopBtn.addEventListener('click', stopRecordingFlow);
-qualitySelect.addEventListener('change', saveSettings);
-formatSelect.addEventListener('change', saveSettings);
-sizeModeSelect.addEventListener('change', saveSettings);
-fpsSelect.addEventListener('change', saveSettings);
-saveAsCheckbox.addEventListener('change', saveSettings);
-
-chrome.runtime.onMessage.addListener((message) => {
-  if (!message || message.type !== 'recorderStatus') return;
-  applyStatus(message);
-});
+bindStaticAuthActions();
+init().catch((err) => setStatus(`Init failed: ${err.message}`));
 
 async function init() {
-  const data = await chrome.storage.local.get({
-    recorderTabId: null,
-    isRecording: false,
-    startedAtMs: null,
-    qualityPreset: '1080p',
-    outputFormat: 'mp4',
-    sizeMode: 'small',
-    fps: 30,
-    saveAsEnabled: true
+  const auth = await sendRuntimeMessage({ type: 'AUTH_GET_STATE' });
+  if (!auth?.ok) {
+    showAuthGate(`Auth check failed: ${auth?.error || 'unknown error'}`);
+    return;
+  }
+  if (!auth.signedIn) {
+    showAuthGate('Sign in required to use recorder.');
+    return;
+  }
+  showApp(auth.user);
+
+  const saved = loadSettings();
+  applySettings(saved);
+
+  els.resolution.addEventListener('change', persist);
+  els.fps.addEventListener('change', persist);
+  els.quality.addEventListener('change', persist);
+  els.startBtn.addEventListener('click', startRecording);
+  els.stopBtn.addEventListener('click', stopRecording);
+  els.downloadBtn.addEventListener('click', renderDownloadHistory);
+
+  chrome.runtime.onMessage.addListener((message) => {
+    if (!message) return;
+    if (message.type === 'recorderStatus') {
+      applyRecorderStatus(message);
+      return;
+    }
+    if (message.type === 'REC_STATUS') {
+      if (typeof message.payload?.isRecording === 'boolean') {
+        isRecording = message.payload.isRecording;
+        syncButtons();
+      }
+      if (message.payload?.message) {
+        const msg = message.payload.message;
+        const isError = /failed|error/i.test(msg);
+        setStatus(msg, isError);
+        if (!message.payload.isRecording) void renderDownloadHistory();
+      }
+    }
   });
 
-  recorderTabId = typeof data.recorderTabId === 'number' ? data.recorderTabId : null;
-  isRecording = Boolean(data.isRecording);
-  startedAtMs = typeof data.startedAtMs === 'number' ? data.startedAtMs : null;
-
-  qualitySelect.value = data.qualityPreset || '1080p';
-  if (!qualitySelect.querySelector(`option[value="${qualitySelect.value}"]`)) {
-    qualitySelect.value = '1080p';
+  const local = await chrome.storage.local.get({ recorderTabId: null, isRecording: false });
+  recorderTabId = typeof local.recorderTabId === 'number' ? local.recorderTabId : null;
+  isRecording = Boolean(local.isRecording);
+  if (isRecording) {
+    const tabAlive = await isRecorderTabAlive(recorderTabId);
+    if (!tabAlive) {
+      isRecording = false;
+      recorderTabId = null;
+      await chrome.storage.local.set({ isRecording: false, recorderTabId: null, startedAtMs: null });
+    }
   }
-  formatSelect.value = data.outputFormat || 'mp4';
-  if (!formatSelect.querySelector(`option[value="${formatSelect.value}"]`)) {
-    formatSelect.value = 'mp4';
-  }
-  sizeModeSelect.value = data.sizeMode || 'small';
-  if (!sizeModeSelect.querySelector(`option[value="${sizeModeSelect.value}"]`)) {
-    sizeModeSelect.value = 'small';
-  }
-  fpsSelect.value = String(data.fps || 30);
-  if (!fpsSelect.querySelector(`option[value="${fpsSelect.value}"]`)) {
-    fpsSelect.value = '30';
-  }
-  saveAsCheckbox.checked = data.saveAsEnabled !== false;
-  syncUi();
+  syncButtons();
+  await renderDownloadHistory();
 }
 
-async function startRecordingFlow() {
-  if (isRecording) return;
-  saveSettings();
-  updateStatus('Opening recorder page...');
-  startBtn.disabled = true;
+function bindStaticAuthActions() {
+  if (els.loginBtn) els.loginBtn.addEventListener('click', login);
+  if (els.logoutBtn) els.logoutBtn.addEventListener('click', logout);
+}
 
+function showAuthGate(text) {
+  els.authGate.hidden = false;
+  els.authGate.style.display = 'block';
+  els.appContent.hidden = true;
+  els.appContent.style.display = 'none';
+  els.authText.textContent = text;
+}
+
+function showApp(user) {
+  els.authGate.hidden = true;
+  els.authGate.style.display = 'none';
+  els.appContent.hidden = false;
+  els.appContent.style.display = 'block';
+  els.userEmail.textContent = user?.email || '';
+}
+
+async function login() {
+  if (popupAuthBusy) return;
+  popupAuthBusy = true;
+  setAuthButtonsDisabled(true);
+  els.authText.textContent = 'Signing in...';
+  const res = await sendRuntimeMessage({ type: 'AUTH_LOGIN' });
+  if (!res?.ok || !res?.signedIn) {
+    showAuthGate(`Sign-in failed: ${res?.error || 'Unknown error'}`);
+    popupAuthBusy = false;
+    setAuthButtonsDisabled(false);
+    return;
+  }
+  showApp(res.user);
+  if (res.warning) setStatus(res.warning);
+  await renderDownloadHistory();
+  popupAuthBusy = false;
+  setAuthButtonsDisabled(false);
+}
+
+async function logout() {
+  await sendRuntimeMessage({ type: 'AUTH_LOGOUT' });
+  showAuthGate('Signed out. Sign in required to use recorder.');
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return { ...defaults };
+    return { ...defaults, ...JSON.parse(raw), outputMode: 'webm' };
+  } catch (_) {
+    return { ...defaults };
+  }
+}
+
+function applySettings(settings) {
+  els.resolution.value = settings.resolution;
+  els.fps.value = String(settings.fps);
+  els.quality.value = settings.quality;
+  els.outputMode.value = 'webm';
+}
+
+function persist() {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(getSettings()));
+}
+
+function getSettings() {
+  return {
+    resolution: els.resolution.value,
+    fps: Number(els.fps.value),
+    quality: els.quality.value,
+    outputMode: 'webm'
+  };
+}
+
+async function startRecording() {
+  if (isRecording) return;
+
+  persist();
+  const settings = getSettings();
+  await chrome.storage.sync.set({
+    qualityPreset: settings.resolution,
+    fps: settings.fps,
+    outputFormat: 'webm',
+    sizeMode: mapQualityToSizeMode(settings.quality),    saveAsEnabled: false
+  });
+
+  setStatus('Opening recorder tab...');
   const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
   const returnTabId = typeof active?.id === 'number' ? active.id : null;
 
@@ -78,118 +188,189 @@ async function startRecordingFlow() {
     active: true
   });
   recorderTabId = tab.id;
-
-  await chrome.storage.local.set({
-    recorderTabId,
-    isRecording: false,
-    startedAtMs: null
-  });
+  isRecording = true;
+  syncButtons();
+  await chrome.storage.local.set({ recorderTabId, isRecording: true });
 
   chrome.tabs.onUpdated.addListener(function onUpdated(tabId, changeInfo) {
     if (tabId !== recorderTabId || changeInfo.status !== 'complete') return;
     chrome.tabs.onUpdated.removeListener(onUpdated);
-    chrome.tabs.sendMessage(recorderTabId, {
-      type: 'startRecordingFromPopup',
-      returnTabId
+    chrome.tabs.sendMessage(recorderTabId, { type: 'startRecordingFromPopup', returnTabId }, () => {
+      if (chrome.runtime.lastError) {
+        isRecording = false;
+        syncButtons();
+        setStatus(`Failed to start: ${chrome.runtime.lastError.message}`, true);
+      } else {
+        setStatus('Share picker opened. Source select karo.');
+      }
     });
   });
 }
 
-async function stopRecordingFlow() {
+async function stopRecording() {
   if (!recorderTabId) {
-    updateStatus('No active recording tab found.');
+    setStatus('No active recorder tab found.', true);
     return;
   }
-  try {
-    await chrome.tabs.sendMessage(recorderTabId, { type: 'stopRecordingFromPopup' });
-    updateStatus('Stopping recording...');
-  } catch (err) {
-    updateStatus('Recorder tab not reachable. Recording may have already stopped.');
-  }
-}
 
-function saveSettings() {
-  chrome.storage.sync.set({
-    qualityPreset: qualitySelect.value,
-    outputFormat: formatSelect.value,
-    sizeMode: sizeModeSelect.value,
-    fps: Number(fpsSelect.value),
-    saveAsEnabled: Boolean(saveAsCheckbox.checked)
+  setStatus('Stopping recording...');
+  chrome.tabs.sendMessage(recorderTabId, { type: 'stopRecordingFromPopup' }, () => {
+    if (chrome.runtime.lastError) {
+      isRecording = false;
+      syncButtons();
+      setStatus('Recorder tab reachable nahi hai.', true);
+      return;
+    }
+    setStatus('Stopping and saving WebM...');
   });
 }
 
-function applyStatus(message) {
-  if (message.state === 'starting') {
-    updateStatus(message.message || 'Picker opened. Please select a window/tab.');
-    startBtn.disabled = true;
-    stopBtn.disabled = true;
+function applyRecorderStatus(message) {
+  const state = message.state;
+
+  if (state === 'progress') {
+    if (message.message) setStatus(message.message);
     return;
   }
 
-  if (message.state === 'recording') {
+  if (state === 'recording') {
     isRecording = true;
-    recorderTabId = message.recorderTabId ?? recorderTabId;
-    startedAtMs = message.startedAtMs || Date.now();
-    chrome.storage.local.set({
-      isRecording: true,
-      startedAtMs,
-      recorderTabId
-    });
-    updateStatus('Recording...');
-    syncUi();
+    syncButtons();
+    setStatus('Recording in progress...');
     return;
   }
 
-  if (message.state === 'stopped' || message.state === 'saved' || message.state === 'cancelled' || message.state === 'error') {
+  if (state === 'saved') {
     isRecording = false;
-    startedAtMs = null;
-    if (message.state === 'saved') {
-      updateStatus(`Saved: ${message.filename}`);
-    } else if (message.state === 'cancelled') {
-      updateStatus('Share cancelled.');
-    } else if (message.state === 'error') {
-      updateStatus(message.message || 'Recording error.');
-    } else {
-      updateStatus('Stopped.');
-    }
-    chrome.storage.local.set({
-      isRecording: false,
-      startedAtMs: null
+    syncButtons();
+    setStatus(`Saved: ${message.filename || 'recording file'}`);
+    void chrome.storage.local.set({ isRecording: false, recorderTabId: null });
+    void renderDownloadHistory();
+    return;
+  }
+
+  if (state === 'cancelled') {
+    isRecording = false;
+    syncButtons();
+    setStatus('Share cancelled.');
+    void chrome.storage.local.set({ isRecording: false, recorderTabId: null });
+    return;
+  }
+
+  if (state === 'error') {
+    isRecording = false;
+    syncButtons();
+    setStatus(`Error: ${message.message || 'recording failed'}`, true);
+    void chrome.storage.local.set({ isRecording: false, recorderTabId: null });
+    return;
+  }
+
+  if (state === 'stopped') {
+    isRecording = false;
+    syncButtons();
+    setStatus('Stopped.');
+    void chrome.storage.local.set({ isRecording: false, recorderTabId: null });
+    void renderDownloadHistory();
+  }
+}
+
+function mapQualityToSizeMode(quality) {
+  if (quality === 'high') return 'compat';
+  if (quality === 'low') return 'small';
+  return 'balanced';
+}
+
+function syncButtons() {
+  els.startBtn.disabled = isRecording;
+  els.stopBtn.disabled = !isRecording;
+}
+
+function setStatus(text, isError = false) {
+  els.status.textContent = text || 'Idle';
+  els.status.classList.toggle('status--error', isError);
+}
+
+async function renderDownloadHistory() {
+  const all = await new Promise((resolve) => {
+    chrome.downloads.search({ orderBy: ['-startTime'], limit: 50 }, (items) => {
+      resolve(items || []);
     });
-    syncUi();
+  });
+
+  const mine = all
+    .filter((item) =>
+      item &&
+      item.state === 'complete' &&
+      item.byExtensionId === chrome.runtime.id &&
+      /DreamRec|meeting_/i.test(item.filename || '')
+    )
+    .slice(0, 8);
+
+  if (!mine.length) {
+    els.history.innerHTML = '<div class="history-row"><div class="history-time">No recordings yet.</div></div>';
+    return;
+  }
+
+  const filesHtml = mine
+    .map((item) => {
+      const fileName = (item.filename || '').split(/[\\/]/).pop() || 'recording';
+      const when = item.endTime ? new Date(item.endTime).toLocaleString() : '';
+      return `
+        <div class="history-row">
+          <div>
+            <div class="history-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
+            <div class="history-time">${escapeHtml(when)} • webm</div>
+          </div>
+          <div class="history-actions">
+            <button class="history-btn" data-id="${item.id}" data-action="reveal">Reveal</button>
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+  els.history.innerHTML = filesHtml;
+
+  for (const btn of els.history.querySelectorAll('.history-btn')) {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.getAttribute('data-id'));
+      if (!Number.isFinite(id)) return;
+      chrome.downloads.show(id);
+    });
   }
 }
 
-function syncUi() {
-  startBtn.disabled = isRecording;
-  stopBtn.disabled = !isRecording;
-  if (isRecording && startedAtMs) {
-    startTimer();
-  } else {
-    stopTimer();
-    renderTimer(0);
+function escapeHtml(text) {
+  return String(text)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+async function isRecorderTabAlive(tabId) {
+  if (typeof tabId !== 'number') return false;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    return Boolean(tab && !tab.discarded);
+  } catch (_) {
+    return false;
   }
 }
 
-function startTimer() {
-  stopTimer();
-  renderTimer(Math.floor((Date.now() - startedAtMs) / 1000));
-  timerId = setInterval(() => {
-    renderTimer(Math.floor((Date.now() - startedAtMs) / 1000));
-  }, 1000);
+function sendRuntimeMessage(message) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        resolve({ ok: false, error: chrome.runtime.lastError.message });
+        return;
+      }
+      resolve(response || { ok: false, error: 'Empty response' });
+    });
+  });
 }
 
-function stopTimer() {
-  if (timerId) clearInterval(timerId);
-  timerId = null;
+function setAuthButtonsDisabled(disabled) {
+  if (els.loginBtn) els.loginBtn.disabled = disabled;
 }
 
-function renderTimer(seconds) {
-  const m = String(Math.floor(seconds / 60)).padStart(2, '0');
-  const s = String(seconds % 60).padStart(2, '0');
-  timerEl.textContent = `${m}:${s}`;
-}
-
-function updateStatus(text) {
-  statusEl.textContent = text || 'Idle';
-}
